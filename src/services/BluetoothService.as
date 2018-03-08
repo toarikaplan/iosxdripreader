@@ -151,6 +151,13 @@ package services
 		private static const TRANSMITER_PL_TX_CHARACTERISTIC_UUID:String = "c97433f2-be8f-4dc8-b6f0-5343e6100eb4";
 		private static const uuids_TRANSMITER_PL_Characteristics:Vector.<String> = new <String>[TRANSMITER_PL_RX_CHARACTERISTIC_UUID, TRANSMITER_PL_TX_CHARACTERISTIC_UUID];
 		
+		//MiaoMiao
+		private static const MIAOMIAO_SERVICE_UUID:String = "6E400001-B5A3-F393-E0A9-E50E24DCCA9E ";
+		private static const uuids_MIAOMIAO_Service:Vector.<String> = new <String>[MIAOMIAO_SERVICE_UUID];
+		private static const MIAOMIAO_RX_CHARACTERISTIC_UUID:String = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E ";
+		private static const MIAOMIAO_TX_CHARACTERISTIC_UUID:String = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E ";
+		private static const uuids_MIAOMIAO_Characteristics:Vector.<String> = new <String>[MIAOMIAO_RX_CHARACTERISTIC_UUID, MIAOMIAO_TX_CHARACTERISTIC_UUID];
+
 		private static var connectionAttemptTimeStamp:Number;
 		private static const maxTimeBetweenConnectAttemptAndConnectSuccess:Number = 3;
 		private static var waitingForPeripheralCharacteristicsDiscovered:Boolean = false;
@@ -178,9 +185,9 @@ package services
 		private static var nowGlucoseOffset:int = 0;
 		
 		/**
-		 * used for intial scan G4, but also other peripherals that broadcast themselves continuously, like bluereader
+		 * used for scanning devices that are not of type always scan, G4, Transmiter PL, miaomiao ...
 		 */
-		private static var G4ScanTimer:Timer;
+		private static var ScanTimer:Timer;
 		
 		private static var peripheralConnected:Boolean = false;
 		
@@ -261,6 +268,9 @@ package services
 		private static var TRANSMITER_PL_Tx_characteristic:Characteristic;
 		
 		private static var TRANSMITER_PL_Rx_characteristic:Characteristic;
+		
+		private static var MiaoMiao_Tx_characteristic:Characteristic;
+		private static var MiaoMiao_Rx_characteristic:Characteristic;
 		
 		//blukon global vars for backfill processing
 		private static var m_currentTrendIndex:int;
@@ -369,11 +379,11 @@ package services
 		private static function commonSettingChanged(event:SettingsServiceEvent):void {
 			if (event.data == CommonSettings.COMMON_SETTING_PERIPHERAL_TYPE) {
 				myTrace("in settingChanged, event.data = COMMON_SETTING_PERIPHERAL_TYPE, calling stopscanning");
-				if (G4ScanTimer != null) {
-					if (G4ScanTimer.running) {
-						G4ScanTimer.stop();
+				if (ScanTimer != null) {
+					if (ScanTimer.running) {
+						ScanTimer.stop();
 					}
-					G4ScanTimer = null;
+					ScanTimer = null;
 				}
 				stopScanning(null);//need to stop scanning because device type has changed, means also the UUID to scan for
 				if (!BlueToothDevice.isFollower()) {
@@ -457,7 +467,7 @@ package services
 			}
 		}
 		
-		public static function startScanning(initialG4Scan:Boolean = false):void {
+		public static function startScanning(itsNotAnAlwaysScanDevice:Boolean = false):void {
 			if (BlueToothDevice.isFollower()) {
 				myTrace("in startScanning but follower, not starting scan");
 				return;
@@ -467,17 +477,18 @@ package services
 					BlueToothDevice.isBluKon() ? uuids_BLUKON_Service : 
 					(BlueToothDevice.isDexcomG5() ? uuids_G5_Advertisement:
 					(BlueToothDevice.isTransmiter_PL() ? uuids_TRANSMITER_PL_Service:
-					(BlueToothDevice.isBlueReader() ? uuids_Bluereader_Advertisement :uuids_G4_Service)))))
+					(BlueToothDevice.isMiaoMiao() ? uuids_MIAOMIAO_Service:
+					(BlueToothDevice.isBlueReader() ? uuids_Bluereader_Advertisement :uuids_G4_Service))))))
 				{
 					myTrace("failed to start scanning for peripherals");
 					return;
 				} else {
 					myTrace("started scanning for peripherals, peripheraltype = " + CommonSettings.getCommonSetting(CommonSettings.COMMON_SETTING_PERIPHERAL_TYPE));
-					if (initialG4Scan) {
-						myTrace("it's a G4 scan, starting scanTimer");
-						G4ScanTimer = new Timer(MAX_SCAN_TIME_IN_SECONDS * 1000, 1);
-						G4ScanTimer.addEventListener(TimerEvent.TIMER, stopScanning);
-						G4ScanTimer.start();
+					if (itsNotAnAlwaysScanDevice) {
+						myTrace("it's a device which does not require always scanning, start the scan timer");
+						ScanTimer = new Timer(MAX_SCAN_TIME_IN_SECONDS * 1000, 1);
+						ScanTimer.addEventListener(TimerEvent.TIMER, stopScanning);
+						ScanTimer.start();
 					}
 					if (BlueToothDevice.isBluKon()) {
 						startMonitoringAndRangingBeaconsInRegion(uuids_BLUKON_Advertisement);
@@ -617,12 +628,12 @@ package services
 				}
 			}
 			
-			if (G4ScanTimer != null) {
-				if (G4ScanTimer.running) {
+			if (ScanTimer != null) {
+				if (ScanTimer.running) {
 					myTrace("in central_peripheralConnectHandler, stopping scanTimer");
-					G4ScanTimer.stop();
+					ScanTimer.stop();
 				}
-				G4ScanTimer = null;
+				ScanTimer = null;
 			}
 
 			if (!awaitingConnect && !BlueToothDevice.isBluKon()) {
@@ -685,8 +696,9 @@ package services
 					BlueToothDevice.isBluKon() ? uuids_BLUKON_Service : 
 					(BlueToothDevice.isDexcomG5() ? uuids_G5_Service:
 					(BlueToothDevice.isTransmiter_PL() ? uuids_TRANSMITER_PL_Service:
+					(BlueToothDevice.isMiaoMiao() ? uuids_MIAOMIAO_Service:
 					(BlueToothDevice.isBlueReader() ? uuids_BlueReader_Service:
-					uuids_G4_Service))));
+					uuids_G4_Service)))));
 				if (!BlueToothDevice.isBluKon()) {
 					discoverServiceOrCharacteristicTimer = new Timer(DISCOVER_SERVICES_OR_CHARACTERISTICS_RETRY_TIME_IN_SECONDS * 1000, 1);
 					discoverServiceOrCharacteristicTimer.addEventListener(TimerEvent.TIMER, discoverServices);
@@ -865,6 +877,13 @@ package services
 						}
 						index++;
 					}
+				} else if (BlueToothDevice.isMiaoMiao()) {
+					for each (var o:Object in activeBluetoothPeripheral.services) {
+						if (MIAOMIAO_SERVICE_UUID.toUpperCase().indexOf((o.uuid as String).toUpperCase()) > -1) {
+							break;
+						}
+						index++;
+					}
 				}
 				
 				waitingForPeripheralCharacteristicsDiscovered = true;
@@ -873,7 +892,8 @@ package services
 					(BlueToothDevice.isDexcomG5() ? uuids_G5_Characteristics:
 					(BlueToothDevice.isBlueReader() ? uuids_BlueReader_Characteristics:
 					(BlueToothDevice.isTransmiter_PL() ? uuids_TRANSMITER_PL_Characteristics:
-					uuids_G4_Characteristics))));
+					(BlueToothDevice.isMiaoMiao() ? uuids_MIAOMIAO_Characteristics:
+					uuids_G4_Characteristics)))));
 				discoverServiceOrCharacteristicTimer = new Timer(DISCOVER_SERVICES_OR_CHARACTERISTICS_RETRY_TIME_IN_SECONDS * 1000, 1);
 				discoverServiceOrCharacteristicTimer.addEventListener(TimerEvent.TIMER, discoverCharacteristics);
 				discoverServiceOrCharacteristicTimer.start();
@@ -908,6 +928,8 @@ package services
 			var BlueReader_Tx_CharacteristicIndex:int = 0;
 			var TRANSMITER_PL_Rx_CharacteristicIndex:int = 0;
 			var TRANSMITER_PL_Tx_CharacteristicIndex:int = 0;
+			var MiaoMiao_Rx_CharacteristicIndex:int = 0;
+			var MiaoMiao_Tx_CharacteristicIndex:int = 0;
 			
 			var o:Object;
 			if (BlueToothDevice.isDexcomG5()) {
@@ -1066,6 +1088,38 @@ package services
 				{
 					myTrace("Subscribe to BlueReader_RX_Characteristic failed due to invalid adapter state.");
 				}
+			} else if (BlueToothDevice.isMiaoMiao()) {
+				for each (o in activeBluetoothPeripheral.services) {
+					if (MIAOMIAO_SERVICE_UUID.toUpperCase().indexOf((o.uuid as String).toUpperCase()) > -1) {
+						myTrace("peripheral_discoverCharacteristicsHandler, found service " + MIAOMIAO_SERVICE_UUID);
+						break;
+					}
+					servicesIndex++;
+				}
+				
+				for each (o in activeBluetoothPeripheral.services[servicesIndex].characteristics) {
+					if (MIAOMIAO_TX_CHARACTERISTIC_UUID.toUpperCase().indexOf((o.uuid as String).toUpperCase()) > -1) {
+						myTrace("peripheral_discoverCharacteristicsHandler, found characteristic " + MIAOMIAO_TX_CHARACTERISTIC_UUID);
+						break;
+					}
+					MiaoMiao_Tx_CharacteristicIndex++;
+				}
+				MiaoMiao_Tx_characteristic = event.peripheral.services[servicesIndex].characteristics[MiaoMiao_Tx_CharacteristicIndex];
+				
+				for each (o in activeBluetoothPeripheral.services[servicesIndex].characteristics) {
+					if (MIAOMIAO_RX_CHARACTERISTIC_UUID.toUpperCase().indexOf((o.uuid as String).toUpperCase()) > -1) {
+						myTrace("peripheral_discoverCharacteristicsHandler, found characteristic " + MIAOMIAO_RX_CHARACTERISTIC_UUID);
+						break;
+					}
+					MiaoMiao_Rx_CharacteristicIndex++;
+				}
+				MiaoMiao_Rx_characteristic = event.peripheral.services[servicesIndex].characteristics[MiaoMiao_Rx_CharacteristicIndex];
+				
+				myTrace("subscribing to MiaoMiao_Rx_characteristic");
+				if (!activeBluetoothPeripheral.subscribeToCharacteristic(MiaoMiao_Rx_characteristic))
+				{
+					myTrace("Subscribe to characteristic failed due to invalid adapter state.");
+				}
 			}
 		}
 		
@@ -1108,6 +1162,8 @@ package services
 					processBlueReaderTransmitterData(value);
 				} else if (BlueToothDevice.isTransmiter_PL()) {
 					processTRANSMITER_PLTransmitterData(value);
+				} else if (BlueToothDevice.isMiaoMiao()) {
+					processMiaoMiaoTransmitterData(value);
 				} else {
 					myTrace("in peripheral_characteristic_updatedHandler, device type not known");
 				}
@@ -1763,6 +1819,14 @@ package services
 			}
 		}
 		
+		public static function processMiaoMiaoTransmitterData(buffer:ByteArray):void {
+			buffer.endian = Endian.LITTLE_ENDIAN;
+			
+			buffer.position = 0;
+			var bufferAsString:String = buffer.readUTFBytes(buffer.length);
+			myTrace("in processMiaoMiaoTransmitterData buffer as string =  " + bufferAsString);
+		}
+		
 		public static function processTRANSMITER_PLTransmitterData(buffer:ByteArray):void {
 			buffer.endian = Endian.LITTLE_ENDIAN;
 			
@@ -2068,6 +2132,10 @@ package services
 				return "TRANSMITER_PL_RX_CHARACTERISTIC_UUID";
 			} else if (uuid.toUpperCase() == TRANSMITER_PL_TX_CHARACTERISTIC_UUID.toUpperCase()) {
 				return "TRANSMITER_PL_TX_CHARACTERISTIC_UUID";
+			} else if (uuid.toUpperCase() == MIAOMIAO_TX_CHARACTERISTIC_UUID.toUpperCase()) {
+				return "MIAOMIAO_TX_CHARACTERISTIC_UUID";
+			} else if (uuid.toUpperCase() == MIAOMIAO_RX_CHARACTERISTIC_UUID.toUpperCase()) {
+				return "MIAOMIAO_RX_CHARACTERISTIC_UUID";
 			} 
 			return uuid + ", unknown characteristic uuid";
 		}

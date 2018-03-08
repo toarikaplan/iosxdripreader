@@ -153,6 +153,10 @@ package databaseclasses
 			return (CommonSettings.getCommonSetting(CommonSettings.COMMON_SETTING_PERIPHERAL_TYPE).toUpperCase() == "TRANSMITER PL");
 		}
 		
+		public static function isMiaoMiao():Boolean {
+			return (CommonSettings.getCommonSetting(CommonSettings.COMMON_SETTING_PERIPHERAL_TYPE).toUpperCase() == "MIAOMIAO");
+		}
+		
 		/**
 		 * Follower mode, not really a bluetoothdevice but it comes in handy to put it here also
 		 */
@@ -166,7 +170,7 @@ package databaseclasses
 		 *  
 		 */
 		public static function isTypeLimitter():Boolean {
-			return (isBlueReader() || isBluKon() || isLimitter() || isTransmiter_PL());
+			return (isBlueReader() || isBluKon() || isLimitter() || isTransmiter_PL() || isMiaoMiao());
 		}
 		
 		/**
@@ -213,6 +217,8 @@ package databaseclasses
 				return "Follow";
 			if (isTransmiter_PL())
 				return "Transmiter PL";
+			if (isMiaoMiao())
+				return "MiaoMiao";
 			return "unknown";
 		}
 
